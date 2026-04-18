@@ -9,6 +9,24 @@ export interface UseCaseConfig {
   id: UseCase;
   label: string;
   description: string;
-  flightSite: string;
-  hotelSite: string;
+}
+
+export interface FlightResult {
+  price: number;   // USD, round trip total
+  airline: string; // IATA code e.g. "DL"
+  stops: number;
+}
+
+export interface HotelResult {
+  name: string;
+  price: number;   // USD, total for stay
+  nights: number;
+}
+
+export interface WeekendResult {
+  weekend: Weekend;
+  flight: FlightResult | null;
+  hotel: HotelResult | null;
+  totalCost: number | null;
+  error?: string;
 }
