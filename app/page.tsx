@@ -1,283 +1,163 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { getThurMondayPairs, formatDateRange, formatDuration } from "@/lib/dates";
-import type { UseCase, WeekendResult, Weekend } from "@/lib/types";
+import { useState } from "react";
+import { getThurMondayPairs, formatDateRange } from "@/lib/dates";
+import { flightUrl, hotelUrl } from "@/lib/links";
+import type { UseCase, UseCaseConfig } from "@/lib/types";
 
-const USE_CASES: { id: UseCase; label: string; description: string }[] = [
-  { id: 1, label: "Delta + Hyatt", description: "Delta flights · Hyatt hotels only" },
-  { id: 2, label: "Delta + Any Hotel", description: "Delta flights · All hotels" },
-  { id: 3, label: "Any Airline + Hyatt", description: "All airlines · Hyatt hotels only" },
-  { id: 4, label: "All Options", description: "All airlines · All hotels" },
+const USE_CASES: UseCaseConfig[] = [
+  {
+    id: 1,
+    label: "Delta + Hyatt",
+    description: "Delta flights only · Hyatt hotels only",
+    flightSite: "delta.com",
+    hotelSite: "hyatt.com",
+  },
+  {
+    id: 2,
+    label: "Delta + Any Hotel",
+    description: "Delta flights only · All hotels via Google",
+    flightSite: "delta.com",
+    hotelSite: "Google Hotels",
+  },
+  {
+    id: 3,
+    label: "Any Airline + Hyatt",
+    description: "All airlines via Google Flights · Hyatt hotels only",
+    flightSite: "Google Flights",
+    hotelSite: "hyatt.com",
+  },
+  {
+    id: 4,
+    label: "All Options",
+    description: "All airlines · All hotels — fully open search",
+    flightSite: "Google Flights",
+    hotelSite: "Google Hotels",
+  },
 ];
 
-type ResultMap = Map<string, WeekendResult | "loading" | "error">;
+function daysUntil(isoDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(isoDate + "T12:00:00");
+  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
+}
 
-function weekendKey(w: Weekend) {
-  return w.departureDate;
+function openBoth(flightHref: string, hotelHref: string) {
+  window.open(flightHref, "_blank", "noopener");
+  window.open(hotelHref, "_blank", "noopener");
 }
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<UseCase>(1);
-  const [results, setResults] = useState<ResultMap>(new Map());
-  const [hotelIds, setHotelIds] = useState<string[]>([]);
-  const [status, setStatus] = useState<"idle" | "fetching-hotels" | "fetching-trips" | "done" | "error">("idle");
-  const [sortBy, setSortBy] = useState<"cost" | "date">("cost");
-
   const weekends = getThurMondayPairs(new Date(), 6);
-
-  const fetchTab = useCallback(async (useCase: UseCase) => {
-    setResults(new Map());
-    setStatus("fetching-hotels");
-
-    // Step 1: get hotel IDs for this use case
-    let ids: string[] = [];
-    try {
-      const res = await fetch(`/api/hotels?useCase=${useCase}`);
-      const data = await res.json();
-      ids = data.hotelIds ?? [];
-    } catch {
-      setStatus("error");
-      return;
-    }
-    setHotelIds(ids);
-    setStatus("fetching-trips");
-
-    // Step 2: fire all weekend searches in parallel
-    const initialMap = new Map<string, WeekendResult | "loading" | "error">();
-    weekends.forEach((w) => initialMap.set(weekendKey(w), "loading"));
-    setResults(new Map(initialMap));
-
-    const hotelParam = ids.join(",");
-
-    await Promise.allSettled(
-      weekends.map(async (w) => {
-        try {
-          const url =
-            `/api/search?useCase=${useCase}` +
-            `&departureDate=${w.departureDate}` +
-            `&returnDate=${w.returnDate}` +
-            (hotelParam ? `&hotelIds=${hotelParam}` : "");
-          const res = await fetch(url);
-          const data = await res.json();
-          setResults((prev) => {
-            const next = new Map(prev);
-            next.set(weekendKey(w), data.result as WeekendResult);
-            return next;
-          });
-        } catch {
-          setResults((prev) => {
-            const next = new Map(prev);
-            next.set(weekendKey(w), "error");
-            return next;
-          });
-        }
-      })
-    );
-
-    setStatus("done");
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    fetchTab(activeTab);
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const completedResults = weekends
-    .map((w) => results.get(weekendKey(w)))
-    .filter((r): r is WeekendResult => !!r && r !== "loading" && r !== "error");
-
-  const sorted = [...completedResults].sort((a, b) => {
-    if (sortBy === "cost") {
-      if (a.totalCost === null && b.totalCost === null) return 0;
-      if (a.totalCost === null) return 1;
-      if (b.totalCost === null) return -1;
-      return a.totalCost - b.totalCost;
-    }
-    return a.weekend.departureDate.localeCompare(b.weekend.departureDate);
-  });
-
-  const loadingCount = weekends.filter((w) => results.get(weekendKey(w)) === "loading").length;
-  const doneCount = weekends.length - loadingCount;
+  const uc = USE_CASES.find((u) => u.id === activeTab)!;
 
   return (
-    <main className="min-h-screen p-6 max-w-6xl mx-auto">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Singapore Trip Finder</h1>
-        <p className="text-gray-500 mt-1 text-sm">
-          4-day Thu–Mon weekends · Seattle (SEA) → Singapore (SIN) · Next 6 months
-        </p>
-      </header>
+    <main className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-4xl mx-auto">
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {USE_CASES.map((uc) => (
-          <button
-            key={uc.id}
-            onClick={() => setActiveTab(uc.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === uc.id
-                ? "bg-blue-600 text-white shadow"
-                : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            {uc.label}
-          </button>
-        ))}
-      </div>
+        {/* Header */}
+        <header className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Singapore Trip Finder</h1>
+          <p className="text-gray-500 mt-1 text-sm">
+            Thu–Mon 4-night weekends · Seattle (SEA) → Singapore (SIN) · next 6 months
+          </p>
+        </header>
 
-      <p className="text-xs text-gray-400 mb-4">
-        {USE_CASES.find((u) => u.id === activeTab)?.description}
-      </p>
-
-      {/* Status bar */}
-      {status !== "idle" && status !== "done" && (
-        <div className="mb-4 flex items-center gap-3 text-sm text-gray-600">
-          <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
-          {status === "fetching-hotels" && "Loading hotel options…"}
-          {status === "fetching-trips" && `Checking ${doneCount} of ${weekends.length} weekends…`}
+        {/* Tabs */}
+        <div className="flex flex-wrap gap-2 mb-2">
+          {USE_CASES.map((u) => (
+            <button
+              key={u.id}
+              onClick={() => setActiveTab(u.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === u.id
+                  ? "bg-blue-600 text-white shadow"
+                  : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              {u.label}
+            </button>
+          ))}
         </div>
-      )}
+        <p className="text-xs text-gray-400 mb-6">{uc.description}</p>
 
-      {status === "done" && (
-        <p className="text-xs text-gray-400 mb-4">
-          Found {sorted.filter((r) => r.totalCost !== null).length} options with pricing ·{" "}
-          <button onClick={() => fetchTab(activeTab)} className="text-blue-500 hover:underline">
-            Refresh
-          </button>
-        </p>
-      )}
+        {/* Weekend table */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="grid grid-cols-[1fr_auto_auto_auto_auto] text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 py-3 border-b border-gray-100 gap-4">
+            <span>Weekend</span>
+            <span className="text-right">Away</span>
+            <span className="text-right hidden sm:block">Nights</span>
+            <span className="text-right">Flights</span>
+            <span className="text-right">Hotels</span>
+          </div>
 
-      {/* Sort toggle */}
-      {sorted.length > 0 && (
-        <div className="flex gap-3 mb-4 items-center text-sm text-gray-600">
-          <span>Sort by:</span>
-          <button
-            onClick={() => setSortBy("cost")}
-            className={`px-3 py-1 rounded ${sortBy === "cost" ? "bg-blue-100 text-blue-700 font-medium" : "hover:bg-gray-100"}`}
-          >
-            Total Cost
-          </button>
-          <button
-            onClick={() => setSortBy("date")}
-            className={`px-3 py-1 rounded ${sortBy === "date" ? "bg-blue-100 text-blue-700 font-medium" : "hover:bg-gray-100"}`}
-          >
-            Date
-          </button>
+          {weekends.map((w, i) => {
+            const days = daysUntil(w.departureDate);
+            const fUrl = flightUrl(activeTab, w.departureDate, w.returnDate);
+            const hUrl = hotelUrl(activeTab, w.departureDate, w.returnDate);
+            const isNear = days <= 45;
+
+            return (
+              <div
+                key={w.departureDate}
+                className={`grid grid-cols-[1fr_auto_auto_auto_auto] items-center px-5 py-4 gap-4 transition-colors hover:bg-blue-50 ${
+                  i % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                }`}
+              >
+                {/* Date range */}
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {formatDateRange(w.departureDate, w.returnDate)}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Depart Thu · Return Mon
+                  </p>
+                </div>
+
+                {/* Days away */}
+                <span
+                  className={`text-xs font-medium px-2 py-0.5 rounded-full text-right whitespace-nowrap ${
+                    isNear
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}
+                >
+                  {days}d
+                </span>
+
+                {/* Nights */}
+                <span className="text-xs text-gray-400 text-right hidden sm:block">3 nights</span>
+
+                {/* Flights link */}
+                <a
+                  href={fUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline text-right whitespace-nowrap"
+                >
+                  {uc.flightSite === "delta.com" ? "Delta ↗" : "Flights ↗"}
+                </a>
+
+                {/* Hotels link */}
+                <a
+                  href={hUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-800 hover:underline text-right whitespace-nowrap"
+                >
+                  {uc.hotelSite === "hyatt.com" ? "Hyatt ↗" : "Hotels ↗"}
+                </a>
+              </div>
+            );
+          })}
         </div>
-      )}
 
-      {/* Results */}
-      <div className="space-y-3">
-        {sorted.length === 0 && status === "done" && (
-          <p className="text-gray-500 text-sm py-8 text-center">No results found for this period.</p>
-        )}
-
-        {sorted.map((r) => (
-          <ResultCard key={r.weekend.departureDate} result={r} />
-        ))}
-
-        {/* Skeleton rows for still-loading weekends */}
-        {status === "fetching-trips" &&
-          weekends
-            .filter((w) => results.get(weekendKey(w)) === "loading")
-            .slice(0, 3)
-            .map((w) => <SkeletonRow key={w.departureDate} weekend={w} />)}
+        <p className="text-xs text-gray-400 mt-4 text-center">
+          Hotel dates: Fri check-in → Mon check-out (3 nights) · prices shown on destination site
+        </p>
       </div>
     </main>
-  );
-}
-
-function ResultCard({ result }: { result: WeekendResult }) {
-  const { weekend, outbound, inbound, hotel, totalCost } = result;
-
-  const hasFullData = outbound && inbound && hotel && totalCost !== null;
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        {/* Date */}
-        <div className="min-w-[180px]">
-          <p className="font-semibold text-gray-900">{formatDateRange(weekend.departureDate, weekend.returnDate)}</p>
-          <p className="text-xs text-gray-400">Thu → Mon · 4 nights</p>
-        </div>
-
-        {/* Outbound flight */}
-        <FlightCell label="SEA → SIN" flight={outbound} />
-
-        {/* Return flight */}
-        <FlightCell label="SIN → SEA" flight={inbound} />
-
-        {/* Hotel */}
-        <div className="min-w-[160px]">
-          <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">Hotel</p>
-          {hotel ? (
-            <>
-              <p className="text-sm font-medium text-gray-800 truncate max-w-[180px]">{hotel.name}</p>
-              <p className="text-xs text-gray-500">
-                ${hotel.totalPrice.toLocaleString()} total · {hotel.chainCode || "—"}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-400">No availability</p>
-          )}
-        </div>
-
-        {/* Total */}
-        <div className="text-right min-w-[100px]">
-          {hasFullData ? (
-            <>
-              <p className="text-xl font-bold text-green-700">${totalCost!.toLocaleString()}</p>
-              <p className="text-xs text-gray-400">flight + hotel</p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-400">—</p>
-          )}
-        </div>
-      </div>
-
-      {result.error && (
-        <p className="text-xs text-red-400 mt-2">{result.error}</p>
-      )}
-    </div>
-  );
-}
-
-function FlightCell({ label, flight }: { label: string; flight: WeekendResult["outbound"] }) {
-  return (
-    <div className="min-w-[140px]">
-      <p className="text-xs text-gray-400 uppercase tracking-wide mb-0.5">{label}</p>
-      {flight ? (
-        <>
-          <p className="text-sm font-medium text-gray-800">
-            ${flight.price.toLocaleString()}{" "}
-            <span className="text-xs text-gray-500">({flight.airline})</span>
-          </p>
-          <p className="text-xs text-gray-500">
-            {formatDuration(flight.duration)} · {flight.stops === 0 ? "nonstop" : `${flight.stops} stop${flight.stops > 1 ? "s" : ""}`}
-          </p>
-        </>
-      ) : (
-        <p className="text-sm text-gray-400">No flights</p>
-      )}
-    </div>
-  );
-}
-
-function SkeletonRow({ weekend }: { weekend: Weekend }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 animate-pulse">
-      <div className="flex items-center gap-6">
-        <div>
-          <div className="h-4 w-36 bg-gray-200 rounded mb-1" />
-          <div className="h-3 w-20 bg-gray-100 rounded" />
-        </div>
-        <p className="text-xs text-gray-300 ml-auto">
-          {formatDateRange(weekend.departureDate, weekend.returnDate)}
-        </p>
-      </div>
-    </div>
   );
 }
