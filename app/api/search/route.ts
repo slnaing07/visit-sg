@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchFlight } from "@/lib/travelpayouts";
+import { searchFlight } from "@/lib/skyscrapper";
 import { getCheapestHotel } from "@/lib/xotelo";
 import type { UseCase, WeekendResult } from "@/lib/types";
 import type { XoteloHotel } from "@/lib/xotelo";
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const [flight, hotel] = await Promise.all([
-      searchFlight("SEA", "SIN", departureDate, returnDate, deltaOnly),
+      searchFlight(departureDate, returnDate, deltaOnly),
       getCheapestHotel(hotels, checkIn, checkOut, nights),
     ]);
 

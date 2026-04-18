@@ -2,39 +2,58 @@ import type { HotelResult } from "./types";
 
 const BASE = "https://data.xotelo.com/api";
 
-// TripAdvisor g-code for Singapore (from tripadvisor.com/Hotels-g294265-Singapore-Hotels.html)
+// TripAdvisor g-code for Singapore
 const SINGAPORE_LOCATION_KEY = "294265";
-
-const HYATT_KEYWORDS = ["hyatt", "andaz", "alila"];
 
 export interface XoteloHotel {
   key: string;
   name: string;
 }
 
-function isHyatt(name: string): boolean {
-  const lower = name.toLowerCase();
-  return HYATT_KEYWORDS.some((k) => lower.includes(k));
+interface ListResponse {
+  result?: { list?: Array<{ key: string; name: string }> };
 }
 
-export async function getHotelList(hyattOnly: boolean): Promise<XoteloHotel[]> {
-  let res: Response;
+interface SearchResponse {
+  result?: { list?: Array<{ key: string; name: string }> };
+}
+
+interface RatesResponse {
+  result?: { rates?: Array<{ rate: number }> };
+}
+
+// For Hyatt-only cases: search Xotelo directly for Hyatt hotels in Singapore
+async function searchHyattHotels(): Promise<XoteloHotel[]> {
   try {
-    res = await fetch(`${BASE}/list?location_key=${SINGAPORE_LOCATION_KEY}`, {
-      next: { revalidate: 3600 }, // cache hotel list for 1 hour
-    });
+    const res = await fetch(
+      `${BASE}/search?query=Hyatt+Singapore`,
+      { next: { revalidate: 3600 } }
+    );
+    if (!res.ok) return [];
+    const json = await res.json() as SearchResponse;
+    return (json.result?.list ?? []).map((h) => ({ key: h.key, name: h.name }));
   } catch {
     return [];
   }
-  if (!res.ok) return [];
+}
 
-  const json = await res.json() as {
-    result?: { list?: Array<{ key: string; name: string }> };
-  };
+// For all-hotels cases: get the full Singapore hotel list
+async function listAllHotels(): Promise<XoteloHotel[]> {
+  try {
+    const res = await fetch(
+      `${BASE}/list?location_key=${SINGAPORE_LOCATION_KEY}`,
+      { next: { revalidate: 3600 } }
+    );
+    if (!res.ok) return [];
+    const json = await res.json() as ListResponse;
+    return (json.result?.list ?? []).slice(0, 30).map((h) => ({ key: h.key, name: h.name }));
+  } catch {
+    return [];
+  }
+}
 
-  const list = json.result?.list ?? [];
-  if (hyattOnly) return list.filter((h) => isHyatt(h.name));
-  return list.slice(0, 30); // top 30 for all-hotels case
+export async function getHotelList(hyattOnly: boolean): Promise<XoteloHotel[]> {
+  return hyattOnly ? searchHyattHotels() : listAllHotels();
 }
 
 export async function getCheapestHotel(
@@ -47,26 +66,22 @@ export async function getCheapestHotel(
 
   const results = await Promise.allSettled(
     hotels.map(async (hotel) => {
-      let res: Response;
       try {
-        res = await fetch(
+        const res = await fetch(
           `${BASE}/rates?hotel_key=${hotel.key}&chk_in=${checkIn}&chk_out=${checkOut}`,
           { next: { revalidate: 0 } }
         );
+        if (!res.ok) return null;
+
+        const json = await res.json() as RatesResponse;
+        const rates = json.result?.rates ?? [];
+        if (!rates.length) return null;
+
+        rates.sort((a, b) => a.rate - b.rate);
+        return { name: hotel.name, price: rates[0].rate, nights } as HotelResult;
       } catch {
         return null;
       }
-      if (!res.ok) return null;
-
-      const json = await res.json() as {
-        result?: { rates?: Array<{ rate: number }> };
-      };
-
-      const rates = json.result?.rates ?? [];
-      if (!rates.length) return null;
-
-      rates.sort((a, b) => a.rate - b.rate);
-      return { name: hotel.name, price: rates[0].rate, nights };
     })
   );
 
