@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchFlight } from "@/lib/skyscrapper";
+import { searchFlightPriceline } from "@/lib/priceline";
 import { getCheapestHotel } from "@/lib/xotelo";
 import type { UseCase, WeekendResult } from "@/lib/types";
 import type { XoteloHotel } from "@/lib/xotelo";
@@ -23,9 +24,12 @@ export async function GET(req: NextRequest) {
   // Hotel price comes from the pre-fetched list (no extra API call per weekend)
   const hotel = getCheapestHotel(hotels, nights);
 
-  // Only flight needs a live API call per weekend
+  // Delta use cases: Priceline (per-weekend, airline-level filtering)
+  // Any-airline use cases: Skyscanner price calendar (cached, 2 calls total)
   const flightSettled = await Promise.allSettled([
-    searchFlight(departureDate, returnDate, deltaOnly),
+    deltaOnly
+      ? searchFlightPriceline(departureDate, returnDate, true)
+      : searchFlight(departureDate, returnDate, false),
   ]);
 
   const flight = flightSettled[0].status === "fulfilled" ? flightSettled[0].value : null;

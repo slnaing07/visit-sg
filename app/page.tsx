@@ -292,10 +292,15 @@ function ResultRow({ result, useCase }: { result: WeekendResult; useCase: UseCas
           {flight ? (
             <>
               <p className="text-sm font-semibold text-gray-800">
-                ~${flight.price.toLocaleString()}
+                ${flight.price.toLocaleString()}
+                {flight.airline && (
+                  <span className="text-xs font-normal text-gray-500 ml-1">({flight.airline})</span>
+                )}
               </p>
-              {(useCase === 1 || useCase === 2) && (
-                <p className="text-xs text-amber-500">market price (verify Delta)</p>
+              {flight.stops !== undefined && (
+                <p className="text-xs text-gray-400">
+                  {flight.stops === 0 ? "Nonstop" : `${flight.stops} stop${flight.stops > 1 ? "s" : ""}`}
+                </p>
               )}
             </>
           ) : (
