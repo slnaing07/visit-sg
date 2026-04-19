@@ -74,36 +74,40 @@ export async function searchFlightPriceline(
 
   let result: FlightResult | null = null;
 
-  try {
-    const res = await fetch(url.toString(), {
-      headers: headers(),
-      next: { revalidate: 0 },
-    });
-    if (!res.ok) throw new Error(`Priceline error: ${res.status}`);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
 
-    const json = (await res.json()) as PricelineResponse;
-    const itinData = json.getAirFlightRoundTrip?.results?.result?.itinerary_data ?? {};
-    const itins = Object.values(itinData);
+      const res = await fetch(url.toString(), {
+        headers: headers(),
+        next: { revalidate: 0 },
+        signal: AbortSignal.timeout(8000), // 8s per call max
+      });
+      if (res.status === 429) continue; // rate limited — retry
+      if (!res.ok) break;
 
-    const candidates = deltaOnly ? itins.filter(hasDelta) : itins;
-    if (!candidates.length) {
-      cache.set(cacheKey, { result: null, fetchedAt: Date.now() });
-      return null;
+      const json = (await res.json()) as PricelineResponse;
+      const itinData = json.getAirFlightRoundTrip?.results?.result?.itinerary_data ?? {};
+      const itins = Object.values(itinData);
+
+      const candidates = deltaOnly ? itins.filter(hasDelta) : itins;
+      if (!candidates.length) break;
+
+      candidates.sort(
+        (a, b) => a.price_details.display_total_fare - b.price_details.display_total_fare
+      );
+      const best = candidates[0];
+
+      result = {
+        price: best.price_details.display_total_fare,
+        airline: deltaOnly ? "DL/KE" : undefined,
+        stops: totalStops(best),
+        deltaFiltered: deltaOnly,
+      };
+      break;
+    } catch {
+      // transient error — retry once
     }
-
-    candidates.sort(
-      (a, b) => a.price_details.display_total_fare - b.price_details.display_total_fare
-    );
-    const best = candidates[0];
-
-    result = {
-      price: best.price_details.display_total_fare,
-      airline: deltaOnly ? "DL/KE" : undefined,
-      stops: totalStops(best),
-      deltaFiltered: deltaOnly,
-    };
-  } catch {
-    // leave result as null
   }
 
   cache.set(cacheKey, { result, fetchedAt: Date.now() });

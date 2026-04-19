@@ -293,7 +293,9 @@ function ResultRow({ result, useCase }: { result: WeekendResult; useCase: UseCas
               )}
             </>
           ) : (
-            <p className="text-sm text-gray-300">No data</p>
+            <p className="text-sm text-gray-400 italic">
+              {(useCase === 1 || useCase === 2) ? "No Delta flights" : "No data"}
+            </p>
           )}
         </div>
 
