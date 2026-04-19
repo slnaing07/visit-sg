@@ -3,6 +3,8 @@ import { searchFlightPriceline } from "@/lib/priceline";
 import { getThurMondayPairs } from "@/lib/dates";
 import type { UseCase, FlightResult } from "@/lib/types";
 
+export const maxDuration = 60; // seconds — requires Vercel Pro or higher
+
 // Sequential delay to avoid hitting Priceline rate limits
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
