@@ -4,57 +4,43 @@ import { getCheapestHotel } from "@/lib/xotelo";
 import type { UseCase, WeekendResult } from "@/lib/types";
 import type { XoteloHotel } from "@/lib/xotelo";
 
-// Hotel check-in is the day after departure (SEA→SIN is an overnight flight)
-function addDays(isoDate: string, n: number): string {
-  const d = new Date(isoDate + "T12:00:00");
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split("T")[0];
-}
-
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
-  const useCase = parseInt(p.get("useCase") ?? "4") as UseCase;
+  const useCase    = parseInt(p.get("useCase") ?? "4") as UseCase;
   const departureDate = p.get("departureDate");
-  const returnDate = p.get("returnDate");
-  const hotelsParam = p.get("hotels");
+  const returnDate    = p.get("returnDate");
+  const hotelsParam   = p.get("hotels");
 
   if (!departureDate || !returnDate) {
     return NextResponse.json({ error: "Missing dates" }, { status: 400 });
   }
 
   const deltaOnly = useCase === 1 || useCase === 2;
-  const checkIn = addDays(departureDate, 1); // Friday
-  const checkOut = returnDate;               // Monday
-  const nights = 3;
+  const nights    = 3; // Fri check-in → Mon check-out
 
   const hotels: XoteloHotel[] = hotelsParam ? JSON.parse(hotelsParam) : [];
 
-  try {
-    const [flight, hotel] = await Promise.all([
-      searchFlight(departureDate, returnDate, deltaOnly),
-      getCheapestHotel(hotels, checkIn, checkOut, nights),
-    ]);
+  // Hotel price comes from the pre-fetched list (no extra API call per weekend)
+  const hotel = getCheapestHotel(hotels, nights);
 
-    const totalCost =
-      flight && hotel ? flight.price + hotel.price : null;
+  // Only flight needs a live API call per weekend
+  const flightSettled = await Promise.allSettled([
+    searchFlight(departureDate, returnDate, deltaOnly),
+  ]);
 
-    const result: WeekendResult = {
-      weekend: { departureDate, returnDate },
-      flight,
-      hotel,
-      totalCost,
-    };
+  const flight = flightSettled[0].status === "fulfilled" ? flightSettled[0].value : null;
+  const flightError = flightSettled[0].status === "rejected"
+    ? String(flightSettled[0].reason) : undefined;
 
-    return NextResponse.json({ result });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    const result: WeekendResult = {
-      weekend: { departureDate, returnDate },
-      flight: null,
-      hotel: null,
-      totalCost: null,
-      error: message,
-    };
-    return NextResponse.json({ result });
-  }
+  const totalCost = flight && hotel ? flight.price + hotel.price : null;
+
+  const result: WeekendResult = {
+    weekend: { departureDate, returnDate },
+    flight,
+    hotel,
+    totalCost,
+    error: flightError,
+  };
+
+  return NextResponse.json({ result });
 }

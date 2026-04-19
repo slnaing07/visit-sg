@@ -12,9 +12,10 @@ export interface UseCaseConfig {
 }
 
 export interface FlightResult {
-  price: number;   // USD, round trip total
-  airline: string; // IATA code e.g. "DL"
-  stops: number;
+  price: number;        // USD, round trip total (sum of two one-way calendar prices)
+  airline?: string;     // IATA code — not available from price calendar
+  stops?: number;       // not available from price calendar
+  deltaFiltered: boolean; // true only if result is verified Delta-only
 }
 
 export interface HotelResult {

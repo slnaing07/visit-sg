@@ -47,12 +47,12 @@ export async function searchFlight(
   if (deltaOnly) {
     const dl = byAirline["DL"];
     if (!dl) return null;
-    return { price: dl.price, airline: "DL", stops: dl.transfers };
+    return { price: dl.price, airline: "DL", stops: dl.transfers, deltaFiltered: true };
   }
 
   const tickets = Object.values(byAirline);
   if (!tickets.length) return null;
   tickets.sort((a, b) => a.price - b.price);
   const best = tickets[0];
-  return { price: best.price, airline: best.airline, stops: best.transfers };
+  return { price: best.price, airline: best.airline, stops: best.transfers, deltaFiltered: false };
 }

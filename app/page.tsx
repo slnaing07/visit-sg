@@ -258,8 +258,8 @@ export default function Home() {
         </div>
 
         <p className="text-xs text-gray-400 mt-6 text-center">
-          Prices from Travelpayouts (flights) & Xotelo (hotels) · Hotel: Fri check-in → Mon check-out, 3 nights ·
-          Click links to book
+          Flight prices from Skyscanner price calendar (market minimum, not airline-specific) · Hotels from Xotelo ·
+          Hotel: Fri check-in → Mon check-out, 3 nights · Click links to book
         </p>
       </div>
     </main>
@@ -292,12 +292,11 @@ function ResultRow({ result, useCase }: { result: WeekendResult; useCase: UseCas
           {flight ? (
             <>
               <p className="text-sm font-semibold text-gray-800">
-                ${flight.price.toLocaleString()}{" "}
-                <span className="text-xs font-normal text-gray-500">({flight.airline})</span>
+                ~${flight.price.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-400">
-                {flight.stops === 0 ? "Nonstop" : `${flight.stops} stop${flight.stops > 1 ? "s" : ""}`}
-              </p>
+              {(useCase === 1 || useCase === 2) && (
+                <p className="text-xs text-amber-500">market price (verify Delta)</p>
+              )}
             </>
           ) : (
             <p className="text-sm text-gray-300">No data</p>
