@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { getThurMondayPairs, formatDateRange } from "@/lib/dates";
 import { flightUrl, hotelUrl } from "@/lib/links";
 import type { UseCase, UseCaseConfig, WeekendResult, Weekend, FlightResult } from "@/lib/types";
+import { getCheapestHotel } from "@/lib/xotelo";
 import type { XoteloHotel } from "@/lib/xotelo";
 
 const USE_CASES: UseCaseConfig[] = [
@@ -101,9 +102,7 @@ export default function Home() {
 
     if (controller.signal.aborted) return;
 
-    const nights = 3;
-    const { getCheapestHotel } = await import("@/lib/xotelo");
-    const hotel = getCheapestHotel(hotels, nights);
+    const hotel = getCheapestHotel(hotels, 3);
 
     const finished: WeekendResult[] = [];
     const next = new Map<string, ResultEntry>();
