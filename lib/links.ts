@@ -8,7 +8,7 @@ function addDays(isoDate: string, n: number): string {
 
 export function flightUrl(useCase: UseCase, departureDate: string, returnDate: string): string {
   const base = `https://www.kayak.com/flights/SEA-SIN/${departureDate}/${returnDate}?cabin=economy&travelers=1a`;
-  return (useCase === 1 || useCase === 2) ? base + "&airline=DL" : base;
+  return (useCase === 1 || useCase === 2) ? base + "&fs=airlines=DL" : base;
 }
 
 export function hotelUrl(useCase: UseCase, departureDate: string, returnDate: string): string {
