@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getThurMondayPairs, formatDateRange } from "@/lib/dates";
 import { flightUrl, hotelUrl } from "@/lib/links";
-import type { UseCase, UseCaseConfig, WeekendResult, Weekend } from "@/lib/types";
+import type { UseCase, UseCaseConfig, WeekendResult, Weekend, FlightResult } from "@/lib/types";
 import type { XoteloHotel } from "@/lib/xotelo";
 
 const USE_CASES: UseCaseConfig[] = [
@@ -89,45 +89,34 @@ export default function Home() {
       return;
     }
 
-    const hotelsParam = encodeURIComponent(JSON.stringify(hotels));
+    // Step 2: fetch flights (sequential on server) and hotels together
+    let flights: Record<string, FlightResult | null> = {};
+    try {
+      const res = await fetch(`/api/flights?useCase=${useCase}`, { signal: controller.signal });
+      const data = await res.json() as { flights: Record<string, FlightResult | null> };
+      flights = data.flights ?? {};
+    } catch {
+      if (controller.signal.aborted) return;
+    }
 
-    // Step 2: fetch each weekend in parallel
+    if (controller.signal.aborted) return;
+
+    const nights = 3;
+    const { getCheapestHotel } = await import("@/lib/xotelo");
+    const hotel = getCheapestHotel(hotels, nights);
+
     const finished: WeekendResult[] = [];
+    const next = new Map<string, ResultEntry>();
 
-    await Promise.allSettled(
-      weekends.map(async (w) => {
-        try {
-          const url =
-            `/api/search?useCase=${useCase}` +
-            `&departureDate=${w.departureDate}` +
-            `&returnDate=${w.returnDate}` +
-            `&hotels=${hotelsParam}`;
-          const res  = await fetch(url, { signal: controller.signal });
-          const data = await res.json() as { result: WeekendResult };
-          const r    = data.result;
-          finished.push(r);
-          setResults((prev) => {
-            const next = new Map(prev);
-            next.set(w.departureDate, r);
-            return next;
-          });
-        } catch {
-          if (!controller.signal.aborted) {
-            setResults((prev) => {
-              const next = new Map(prev);
-              next.set(w.departureDate, {
-                weekend: w,
-                flight: null,
-                hotel: null,
-                totalCost: null,
-                error: "Request failed",
-              });
-              return next;
-            });
-          }
-        }
-      })
-    );
+    for (const w of weekends) {
+      const flight = flights[w.departureDate] ?? null;
+      const totalCost = flight && hotel ? flight.price + hotel.price : null;
+      const r: WeekendResult = { weekend: w, flight, hotel, totalCost };
+      finished.push(r);
+      next.set(w.departureDate, r);
+    }
+
+    setResults(next);
 
     if (!controller.signal.aborted) {
       saveCache(useCase, finished);
