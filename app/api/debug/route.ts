@@ -32,21 +32,21 @@ export async function GET() {
       });
       skyscannerStatus = `HTTP ${res.status}`;
       const json = await res.json();
-      // Return just the top-level shape to avoid huge payloads
       skyscannerRaw = {
         status: json.status,
+        message: json.message ?? null,
         hasData: !!json.data,
         dataKeys: json.data ? Object.keys(json.data) : [],
         flightsKeys: json.data?.flights ? Object.keys(json.data.flights) : [],
         sampleDayCount: json.data?.flights?.days?.length ?? 0,
-        firstDay: json.data?.flights?.days?.[0] ?? null,
+        firstFewDays: json.data?.flights?.days?.slice(0, 3) ?? [],
       };
     } catch (e) {
       skyscannerStatus = `error: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 
-  // Test Priceline
+  // Test Priceline — inspect slice_data structure to verify DL code visibility
   let pricelineStatus = "not tested";
   let pricelineRaw: unknown = null;
   if (key) {
@@ -69,13 +69,31 @@ export async function GET() {
       pricelineStatus = `HTTP ${res.status}`;
       const json = await res.json();
       const itinData = json.getAirFlightRoundTrip?.results?.result?.itinerary_data ?? null;
+      const itins = itinData ? Object.values(itinData) as Record<string, unknown>[] : [];
+
+      // Drill into slice_data → flight_data → info to find airline codes
+      const itinSummaries = itins.map((it) => {
+        const price = (it.price_details as Record<string, unknown>)?.display_total_fare ?? null;
+        const slices = Object.values((it.slice_data as Record<string, unknown>) ?? {}) as Record<string, unknown>[];
+        const segments = slices.flatMap((sl) =>
+          Object.values((sl.flight_data as Record<string, unknown>) ?? {}) as Record<string, unknown>[]
+        );
+        const codes = segments.map((seg) => {
+          const info = seg.info as Record<string, unknown> | undefined;
+          return {
+            operating: info?.operating_airline_code ?? "?",
+            marketing: info?.marketing_airline_code ?? "?",
+          };
+        });
+        return { price, codes };
+      });
+
       pricelineRaw = {
-        topLevelKeys: Object.keys(json),
-        hasGetAirFlightRoundTrip: !!json.getAirFlightRoundTrip,
-        hasResults: !!json.getAirFlightRoundTrip?.results,
-        hasResult: !!json.getAirFlightRoundTrip?.results?.result,
-        itineraryCount: itinData ? Object.keys(itinData).length : 0,
-        firstItinKeys: itinData ? Object.keys(Object.values(itinData)[0] as object) : [],
+        itineraryCount: itins.length,
+        itineraries: itinSummaries,
+        deltaFound: itinSummaries.some((it) =>
+          it.codes.some((c) => c.operating === "DL" || c.marketing === "DL")
+        ),
       };
     } catch (e) {
       pricelineStatus = `error: ${e instanceof Error ? e.message : String(e)}`;
