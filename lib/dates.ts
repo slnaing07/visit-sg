@@ -1,21 +1,25 @@
 import type { Weekend } from "./types";
 
 export function getThurMondayPairs(fromDate: Date, monthsAhead: number): Weekend[] {
+  // Normalize to midnight UTC so local timezone never shifts the date string.
+  // toISOString() always returns UTC, so all arithmetic must also use UTC.
   const pairs: Weekend[] = [];
-  const end = new Date(fromDate);
-  end.setMonth(end.getMonth() + monthsAhead);
+  const start = new Date(fromDate);
+  start.setUTCHours(0, 0, 0, 0);
 
-  const current = new Date(fromDate);
-  current.setDate(current.getDate() + 1); // start from tomorrow at earliest
+  const end = new Date(start);
+  end.setUTCMonth(end.getUTCMonth() + monthsAhead);
 
-  // Advance to next Thursday (day 4)
-  while (current.getDay() !== 4) {
-    current.setDate(current.getDate() + 1);
+  const current = new Date(start);
+  current.setUTCDate(current.getUTCDate() + 1); // start from tomorrow at earliest
+
+  while (current.getUTCDay() !== 4) {
+    current.setUTCDate(current.getUTCDate() + 1);
   }
 
   while (current <= end) {
     const monday = new Date(current);
-    monday.setDate(monday.getDate() + 4);
+    monday.setUTCDate(monday.getUTCDate() + 4);
 
     if (monday <= end) {
       pairs.push({
@@ -24,7 +28,7 @@ export function getThurMondayPairs(fromDate: Date, monthsAhead: number): Weekend
       });
     }
 
-    current.setDate(current.getDate() + 7);
+    current.setUTCDate(current.getUTCDate() + 7);
   }
 
   return pairs;
