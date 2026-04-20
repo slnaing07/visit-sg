@@ -76,12 +76,12 @@ export async function searchFlightPriceline(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
 
       const res = await fetch(url.toString(), {
         headers: headers(),
         next: { revalidate: 0 },
-        signal: AbortSignal.timeout(8000), // 8s per call max
+        signal: AbortSignal.timeout(5000),
       });
       if (res.status === 429) continue; // rate limited — retry
       if (!res.ok) break;

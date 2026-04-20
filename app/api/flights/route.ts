@@ -10,8 +10,7 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const BATCH_SIZE = 5;
-const BATCH_DELAY_MS = 500;
+const BATCH_SIZE = 10;
 
 export async function GET(req: NextRequest) {
   const useCase = parseInt(req.nextUrl.searchParams.get("useCase") ?? "4") as UseCase;
@@ -43,7 +42,7 @@ export async function GET(req: NextRequest) {
           );
         })
       );
-      if (i + BATCH_SIZE < weekends.length) await sleep(BATCH_DELAY_MS);
+      if (i + BATCH_SIZE < weekends.length) await sleep(200);
     }
   }
 
