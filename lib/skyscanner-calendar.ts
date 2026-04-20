@@ -33,7 +33,7 @@ async function fetchCalendar(originSkyId: string, destinationSkyId: string): Pro
   url.searchParams.set("currency", "USD");
 
   try {
-    const res = await fetch(url.toString(), { headers: headers(), next: { revalidate: 0 } });
+    const res = await fetch(url.toString(), { headers: headers(), next: { revalidate: 3600 } });
     if (!res.ok) return new Map();
     const json = (await res.json()) as CalendarResponse;
     const days = json.data?.flights?.days ?? [];
