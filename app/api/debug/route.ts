@@ -75,7 +75,7 @@ export async function GET() {
 
       // Drill into slice_data → flight_data → info to find airline codes
       const itinSummaries = itins.map((it) => {
-        const price = (it.price_details as Record<string, unknown>)?.display_total_fare ?? null;
+        const priceDetails = it.price_details as Record<string, unknown>;
         const slices = Object.values((it.slice_data as Record<string, unknown>) ?? {}) as Record<string, unknown>[];
         const segments = slices.flatMap((sl) =>
           Object.values((sl.flight_data as Record<string, unknown>) ?? {}) as Record<string, unknown>[]
@@ -87,7 +87,7 @@ export async function GET() {
             marketing: info?.marketing_airline_code ?? "?",
           };
         });
-        return { price, codes };
+        return { priceDetails, codes };
       });
 
       pricelineRaw = {
