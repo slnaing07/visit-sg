@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     }
   } else {
     // Delta tabs: Google Flights in batches to avoid rate limiting
-    const BATCH_SIZE = 3;
+    const BATCH_SIZE = 2;
     for (let i = 0; i < weekends.length; i += BATCH_SIZE) {
       const batch = weekends.slice(i, i + BATCH_SIZE);
       await Promise.all(
