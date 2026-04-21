@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchDeltaFlight } from "@/lib/google-flights";
+import { searchDeltaFlight } from "@/lib/priceline-pro";
 import { getFlightCalendar } from "@/lib/skyscanner-calendar";
 import { getThurMondayPairs } from "@/lib/dates";
 import type { UseCase, FlightResult } from "@/lib/types";
@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
         : null;
     }
   } else {
-    // Delta tabs: Google Flights in batches to avoid rate limiting
-    const BATCH_SIZE = 2;
+    // Delta tabs: priceline-api-pro, batch 5 parallel (~17s/batch → ~51s for 13 weekends)
+    const BATCH_SIZE = 5;
     for (let i = 0; i < weekends.length; i += BATCH_SIZE) {
       const batch = weekends.slice(i, i + BATCH_SIZE);
       await Promise.all(
@@ -32,7 +32,6 @@ export async function GET(req: NextRequest) {
           results[w.departureDate] = await searchDeltaFlight(w.departureDate, w.returnDate);
         })
       );
-      if (i + BATCH_SIZE < weekends.length) await new Promise((r) => setTimeout(r, 1000));
     }
   }
 
