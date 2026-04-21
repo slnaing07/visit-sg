@@ -23,12 +23,17 @@ export async function GET(req: NextRequest) {
         : null;
     }
   } else {
-    // Delta tabs: Google Flights with preferred_airlines=DL, all weekends in parallel
-    await Promise.all(
-      weekends.map(async (w) => {
-        results[w.departureDate] = await searchDeltaFlight(w.departureDate, w.returnDate);
-      })
-    );
+    // Delta tabs: Google Flights in batches to avoid rate limiting
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < weekends.length; i += BATCH_SIZE) {
+      const batch = weekends.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (w) => {
+          results[w.departureDate] = await searchDeltaFlight(w.departureDate, w.returnDate);
+        })
+      );
+      if (i + BATCH_SIZE < weekends.length) await new Promise((r) => setTimeout(r, 1000));
+    }
   }
 
   return NextResponse.json({ flights: results });
