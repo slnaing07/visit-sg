@@ -51,6 +51,9 @@ export async function getFlightCalendar() {
     fetchCalendar("SEA", "SIN"),
     fetchCalendar("SIN", "SEA"),
   ]);
-  calendarCache = { outbound, inbound, fetchedAt: Date.now() };
-  return calendarCache;
+  // Only cache successful results — empty Maps mean a failed fetch, don't poison the cache
+  if (outbound.size > 0 && inbound.size > 0) {
+    calendarCache = { outbound, inbound, fetchedAt: Date.now() };
+  }
+  return { outbound, inbound, fetchedAt: Date.now() };
 }
