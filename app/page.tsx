@@ -155,7 +155,7 @@ export default function Home() {
         <header className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Singapore Trip Finder</h1>
           <p className="text-gray-500 mt-1 text-sm">
-            Thu–Mon weekends · Seattle (SEA) → Singapore (SIN) · next 6 months
+            Thu–Mon weekends · Seattle (SEA) → Singapore (SIN) · next 3 months
           </p>
         </header>
 
