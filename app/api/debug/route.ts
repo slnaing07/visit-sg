@@ -12,39 +12,41 @@ export async function GET() {
   const weekends = getThurMondayPairs(new Date(), 6);
   const { departureDate, returnDate } = weekends[0];
 
-  // Test Skyscanner
-  let skyscannerStatus = "not tested";
-  let skyscannerRaw: unknown = null;
-  if (key) {
+  // Test Skyscanner — both directions
+  async function testSkyscanner(origin: string, dest: string) {
+    if (!key) return { status: "no key", response: null };
     try {
       const url = new URL("https://sky-scrapper.p.rapidapi.com/api/v1/flights/getPriceCalendar");
       const today = new Date().toISOString().slice(0, 10);
       const end = new Date(Date.now() + 210 * 86_400_000).toISOString().slice(0, 10);
-      url.searchParams.set("originSkyId", "SEA");
-      url.searchParams.set("destinationSkyId", "SIN");
+      url.searchParams.set("originSkyId", origin);
+      url.searchParams.set("destinationSkyId", dest);
       url.searchParams.set("fromDate", today);
       url.searchParams.set("toDate", end);
       url.searchParams.set("currency", "USD");
-
       const res = await fetch(url.toString(), {
         headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "sky-scrapper.p.rapidapi.com" },
         signal: AbortSignal.timeout(10000),
       });
-      skyscannerStatus = `HTTP ${res.status}`;
       const json = await res.json();
-      skyscannerRaw = {
-        status: json.status,
-        message: json.message ?? null,
-        hasData: !!json.data,
-        dataKeys: json.data ? Object.keys(json.data) : [],
-        flightsKeys: json.data?.flights ? Object.keys(json.data.flights) : [],
-        sampleDayCount: json.data?.flights?.days?.length ?? 0,
-        firstFewDays: json.data?.flights?.days?.slice(0, 3) ?? [],
+      return {
+        status: `HTTP ${res.status}`,
+        response: {
+          apiStatus: json.status,
+          message: json.message ?? null,
+          dayCount: json.data?.flights?.days?.length ?? 0,
+          firstFewDays: json.data?.flights?.days?.slice(0, 3) ?? [],
+        },
       };
     } catch (e) {
-      skyscannerStatus = `error: ${e instanceof Error ? e.message : String(e)}`;
+      return { status: `error: ${e instanceof Error ? e.message : String(e)}`, response: null };
     }
   }
+
+  const [skyscannerOutbound, skyscannerInbound] = await Promise.all([
+    testSkyscanner("SEA", "SIN"),
+    testSkyscanner("SIN", "SEA"),
+  ]);
 
   // Test Priceline — inspect slice_data structure to verify DL code visibility
   let pricelineStatus = "not tested";
@@ -103,7 +105,10 @@ export async function GET() {
   return NextResponse.json({
     keyStatus,
     testDates: { departureDate, returnDate },
-    skyscanner: { status: skyscannerStatus, response: skyscannerRaw },
+    skyscanner: {
+      outbound: skyscannerOutbound,
+      inbound: skyscannerInbound,
+    },
     priceline: { status: pricelineStatus, response: pricelineRaw },
   });
 }
