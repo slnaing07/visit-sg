@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const useCase = parseInt(req.nextUrl.searchParams.get("useCase") ?? "4") as UseCase;
   const deltaOnly = useCase === 1 || useCase === 2;
 
-  const weekends = getThurMondayPairs(new Date(), 3);
+  const weekends = getThurMondayPairs(new Date(), 4);
   const results: Record<string, FlightResult | null> = {};
 
   if (!deltaOnly) {

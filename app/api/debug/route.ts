@@ -9,7 +9,7 @@ export async function GET() {
     ? "MISSING"
     : `set (${key.slice(0, 4)}...${key.slice(-4)}, length ${key.length})`;
 
-  const weekends = getThurMondayPairs(new Date(), 3);
+  const weekends = getThurMondayPairs(new Date(), 4);
   const { departureDate, returnDate } = weekends[0];
 
   // Test Skyscanner — both directions
