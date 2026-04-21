@@ -81,7 +81,7 @@ export async function searchFlightPriceline(
       const res = await fetch(url.toString(), {
         headers: headers(),
         next: { revalidate: 0 },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(10000),
       });
       if (res.status === 429) continue; // rate limited — retry
       if (!res.ok) break;
